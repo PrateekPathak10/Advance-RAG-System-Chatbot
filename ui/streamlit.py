@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import time
 
-API_URL = "http://backend:10000"
+API_URL = "https://advance-rag-system-chatbot.onrender.com"
 
 st.set_page_config(
     page_title="Advanced RAG Assistant",
