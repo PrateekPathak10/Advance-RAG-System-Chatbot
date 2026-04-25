@@ -15,7 +15,7 @@ from pipeline.rag_pipeline import run_rag_pipeline
 #CONFIG
 UPLOAD_DIR = "uploaded_docs"
 DB_DIR = "./db"
-
+PORT = int(os.environ.get("PORT", 10000))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI()
