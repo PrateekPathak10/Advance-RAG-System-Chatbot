@@ -1,6 +1,5 @@
 langchain
 python-dotenv
-ipykernel
 langchain_community
 langchain-text-splitters
 chromadb
@@ -8,7 +7,6 @@ sentence_transformers
 langchain_huggingface
 langchain_chroma
 langchain_core
-langchain-classic
 langchain_groq
 fastapi
 streamlit

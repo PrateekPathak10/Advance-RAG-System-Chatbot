@@ -79,7 +79,7 @@ def background_ingest(file_path, filename):
 
         remaining = chunks[100:]
 
-        batch_size = 32
+        batch_size = 16
         for i in range(0, len(remaining), batch_size):
             batch = remaining[i:i+batch_size]
             db.add_documents(batch)
