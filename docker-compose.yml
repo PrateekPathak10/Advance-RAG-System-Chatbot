@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    ports:
+      - "10000:10000"
+    env_file:
+      - .env
+    volumes:
+      - ./db:/app/db
+      - ./uploaded_docs:/app/uploaded_docs
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    container_name: rag-frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
