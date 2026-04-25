@@ -14,7 +14,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: ui/Dockerfile
+      dockerfile: Ui/Dockerfile
     container_name: rag-frontend
     ports:
       - "8501:8501"
