@@ -1,4 +1,3 @@
-from langchain_community.embeddings import HuggingFaceEmbeddings
 
 import os
 
