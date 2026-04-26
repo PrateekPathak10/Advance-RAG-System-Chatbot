@@ -5,7 +5,7 @@ ENV = os.getenv("ENV", "local")
 #PRODUCTION (LIGHTWEIGHT)
 if ENV == "production":
 
-    def rerank_docs(llm, query, docs):
+    def rerank_docs(query, docs):
         # simple fallback (no heavy models)
         return docs[:3]
 
@@ -16,7 +16,7 @@ else:
 
     model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 
-    def rerank_docs(llm, query, docs):
+    def rerank_docs(query, docs):
         pairs = [(query, doc.page_content) for doc in docs]
         scores = model.predict(pairs)
 
