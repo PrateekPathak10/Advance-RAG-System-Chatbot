@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import time
 
-API_URL = "https://advance-rag-system-chatbot.onrender.com"
+API_URL = "https://advance-rag-system-chatbot-tawj.onrender.com"
 
 # ADDED: Wake up Render backend on page load to avoid cold start delay
 try:
