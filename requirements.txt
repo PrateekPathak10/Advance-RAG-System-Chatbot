@@ -14,3 +14,4 @@ pypdf
 rank_bm25
 python-multipart
 requests
+langchain_huggingface
