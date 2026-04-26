@@ -113,12 +113,18 @@ async def health():
 
 @app.get("/ask")
 async def ask(query: str):
+    from utils.cache import get_cached
+    cached = get_cached(query)
+    if cached:
+        return cached
     return run_rag_pipeline(
         query,
         get_llm_instance(),
         get_vector_db(),
         all_docs
     )
+ 
+
 
 
 @app.get("/ask-stream")

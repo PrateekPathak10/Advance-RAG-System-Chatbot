@@ -4,7 +4,7 @@ import time
 
 API_URL = "https://advance-rag-system-chatbot-tawj.onrender.com"
 
-# ADDED: Wake up Render backend on page load to avoid cold start delay
+# Wake up Render backend on page load to avoid cold start on first query
 try:
     requests.get(f"{API_URL}/health", timeout=5)
 except:
@@ -16,7 +16,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# STYLING
 st.markdown("""
 <style>
 .block-container {
@@ -25,7 +24,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# SIDEBAR
+#SIDEBAR
 with st.sidebar:
     st.title("⚙️ Controls")
 
@@ -34,6 +33,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("## 📂 Upload PDF")
+    st.caption("Max file size: 5MB")
 
     uploaded_file = st.file_uploader("Upload document", type=["pdf"])
 
@@ -45,76 +45,108 @@ with st.sidebar:
             }
 
             try:
-                res = requests.post(f"{API_URL}/upload", files=files)
+                res = requests.post(f"{API_URL}/upload", files=files, timeout=30)
 
                 if res.status_code == 200:
-                    st.success("✅ Uploaded! Processing in background...")
+                    res_json = res.json()
 
-                    status_placeholder = st.empty()
+                    # Show error returned by backend (e.g. file too large)
+                    if "error" in res_json:
+                        st.error(f"❌ {res_json['error']}")
+                    else:
+                        st.success("✅ Uploaded! Processing in background...")
 
-                    while True:
-                        status_res = requests.get(
-                            f"{API_URL}/status",
-                            params={"filename": uploaded_file.name}
-                        ).json()
+                        status_placeholder = st.empty()
+                        start_wait = time.time()
 
-                        status = status_res.get("status")
+                        while True:
+                            # Timeout after 2 minutes prevents infinite spinner
+                            if time.time() - start_wait > 120:
+                                status_placeholder.error(
+                                    "⏱️ Processing is taking too long. "
+                                    "Try a smaller PDF (under 2MB)."
+                                )
+                                break
 
-                        if status == "processing":
-                            status_placeholder.info("⏳ Processing document...")
-                            time.sleep(1)
+                            try:
+                                response = requests.get(
+                                    f"{API_URL}/status",
+                                    params={"filename": uploaded_file.name},
+                                    timeout=10
+                                )
 
-                        elif status == "done":
-                            status_placeholder.success("✅ Ready to query!")
-                            break
+                                # Guard against empty/crashed backend response
+                                if response.text.strip() == "":
+                                    status_placeholder.error(
+                                        "❌ Backend crashed or restarted. "
+                                        "Please re-upload your file."
+                                    )
+                                    break
 
-                        elif "error" in str(status):
-                            status_placeholder.error(status)
-                            break
+                                status_res = response.json()
+                                status = status_res.get("status")
 
-                        else:
-                            time.sleep(1)
+                            except requests.exceptions.Timeout:
+                                status_placeholder.warning("⏳ Backend is slow, still waiting...")
+                                time.sleep(2)
+                                continue
+                            except Exception as e:
+                                status_placeholder.error(f"❌ Status check failed: {str(e)}")
+                                break
+
+                            if status == "processing":
+                                status_placeholder.info("⏳ Processing document...")
+                                time.sleep(1)
+
+                            elif status in ("done", "ready_partial"):
+                                status_placeholder.success("✅ Ready to query!")
+                                break
+
+                            elif status and "error" in str(status):
+                                status_placeholder.error(f"❌ {status}")
+                                break
+
+                            else:
+                                time.sleep(1)
 
                 else:
-                    st.error("❌ Upload failed")
+                    st.error("❌ Upload failed. Backend returned an error.")
 
+            except requests.exceptions.Timeout:
+                st.error("❌ Upload timed out. Backend may be sleeping — try again in 30 seconds.")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
 
     st.markdown("---")
-
     st.markdown("## 📁 Documents")
 
     try:
-        docs = requests.get(f"{API_URL}/documents").json().get("documents", [])
-
-        for doc in docs:
-            st.write(f"📄 {doc}")
-
+        response = requests.get(f"{API_URL}/documents", timeout=10)
+        if response.text.strip():
+            docs = response.json().get("documents", [])
+            for doc in docs:
+                st.write(f"📄 {doc}")
+        else:
+            st.warning("Backend not reachable")
     except:
         st.warning("Could not fetch documents")
 
-# SESSION
+# SESSION STATE 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Store metadata in session state to avoid double API call
-if "last_meta" not in st.session_state:
-    st.session_state.last_meta = {}
-
-# HEADER
+#  HEADER
 st.title("🤖 Advanced RAG Assistant")
 st.caption("Fast • Intelligent • Streaming RAG System")
 
-# CHAT
+#  CHAT HISTORY 
 for chat in st.session_state.chat_history:
     with st.chat_message("user"):
         st.markdown(chat["query"])
-
     with st.chat_message("assistant"):
         st.markdown(chat["answer"])
 
-# INPUT
+#  INPUT 
 query = st.chat_input("Ask your question related to uploaded pdf...")
 
 if query:
@@ -131,25 +163,36 @@ if query:
             with requests.get(
                 f"{API_URL}/ask-stream",
                 params={"query": query},
-                stream=True
+                stream=True,
+                timeout=60
             ) as r:
-
                 for chunk in r.iter_content(chunk_size=20):
                     if chunk:
                         text = chunk.decode("utf-8")
                         full_text += text
                         placeholder.markdown(full_text + "▌")
 
-        except:
-            st.error("Backend not reachable")
+        except requests.exceptions.Timeout:
+            st.error("⏱️ Response timed out. Backend may be overloaded.")
+            st.stop()
+        except Exception:
+            st.error("❌ Backend not reachable. Please try again.")
             st.stop()
 
         placeholder.markdown(full_text)
 
     latency = round(time.time() - start, 2)
 
-    # /ask reads from cache (no second pipeline run)
-    meta = requests.get(f"{API_URL}/ask", params={"query": query}).json()
+    # /ask reads from cache instant, no second pipeline run
+    try:
+        meta_response = requests.get(
+            f"{API_URL}/ask",
+            params={"query": query},
+            timeout=10
+        )
+        meta = meta_response.json() if meta_response.text.strip() else {}
+    except:
+        meta = {}
 
     col1, col2 = st.columns(2)
     col1.metric("⏱ Response Time", f"{latency}s")
@@ -157,7 +200,7 @@ if query:
 
     if show_query:
         with st.expander("🔁 Improved Query"):
-            st.write(meta.get("improved_query", ""))
+            st.write(meta.get("improved_query", "N/A"))
 
     if show_sources:
         with st.expander("📚 Sources"):
