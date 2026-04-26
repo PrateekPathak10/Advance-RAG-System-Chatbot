@@ -3,6 +3,7 @@ python-dotenv
 langchain_community
 langchain-text-splitters
 chromadb
+fastembed
 langchain_chroma
 langchain_core
 langchain_groq

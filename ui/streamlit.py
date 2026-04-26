@@ -4,6 +4,12 @@ import time
 
 API_URL = "https://advance-rag-system-chatbot.onrender.com"
 
+# ADDED: Wake up Render backend on page load to avoid cold start delay
+try:
+    requests.get(f"{API_URL}/health", timeout=5)
+except:
+    pass
+
 st.set_page_config(
     page_title="Advanced RAG Assistant",
     page_icon="🤖",
@@ -88,15 +94,19 @@ with st.sidebar:
     except:
         st.warning("Could not fetch documents")
 
-#SESSION
+# SESSION
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-#HEADER
+# Store metadata in session state to avoid double API call
+if "last_meta" not in st.session_state:
+    st.session_state.last_meta = {}
+
+# HEADER
 st.title("🤖 Advanced RAG Assistant")
 st.caption("Fast • Intelligent • Streaming RAG System")
 
-#CHAT
+# CHAT
 for chat in st.session_state.chat_history:
     with st.chat_message("user"):
         st.markdown(chat["query"])
@@ -104,7 +114,7 @@ for chat in st.session_state.chat_history:
     with st.chat_message("assistant"):
         st.markdown(chat["answer"])
 
-#INPUT
+# INPUT
 query = st.chat_input("Ask your question related to uploaded pdf...")
 
 if query:
@@ -138,6 +148,7 @@ if query:
 
     latency = round(time.time() - start, 2)
 
+    # /ask reads from cache (no second pipeline run)
     meta = requests.get(f"{API_URL}/ask", params={"query": query}).json()
 
     col1, col2 = st.columns(2)

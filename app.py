@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
+from contextlib import asynccontextmanager  # ← ADDED
 import shutil
 import os
 import threading
@@ -20,8 +21,6 @@ PORT = int(os.environ.get("PORT", 10000))
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app = FastAPI()
-
 vector_db = None
 embeddings = None
 llm = None
@@ -32,7 +31,7 @@ processing_status = {}
 def get_embeddings():
     global embeddings
     if embeddings is None:
-        embeddings = get_embedded()  
+        embeddings = get_embedded()
     return embeddings
 
 
@@ -51,6 +50,20 @@ def get_llm_instance():
     if llm is None:
         llm = get_llm()
     return llm
+
+
+# ADDED: Pre-warm all singletons on startup
+# so the first real request isn't slow
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_embeddings()
+    get_llm_instance()
+    get_vector_db()
+    yield  
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 def stream_response(text):
@@ -89,6 +102,13 @@ def background_ingest(file_path, filename):
 
     except Exception as e:
         processing_status[filename] = f"error: {str(e)}"
+
+
+# /health endpoint
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/ask")
